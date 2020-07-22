@@ -2,7 +2,7 @@
 
 namespace Swisschain.Extensions.Postgres.StaleConnectionsCleaning
 {
-    public interface IStaleConnectionsCleaner
+    internal interface IStaleConnectionsCleaner
     {
         Task Clear();
     }

@@ -6,7 +6,7 @@ using Npgsql;
 
 namespace Swisschain.Extensions.Postgres.StaleConnectionsCleaning
 {
-    public sealed class StaleConnectionsCleaner : IStaleConnectionsCleaner
+    internal sealed class StaleConnectionsCleaner : IStaleConnectionsCleaner
     {
         private readonly ILogger<StaleConnectionsCleaner> _logger;
         private readonly string _connectionString;
