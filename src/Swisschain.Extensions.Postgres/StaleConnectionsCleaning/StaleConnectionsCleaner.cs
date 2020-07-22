@@ -3,6 +3,7 @@ using System.Data;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Npgsql;
+using NpgsqlTypes;
 
 namespace Swisschain.Extensions.Postgres.StaleConnectionsCleaning
 {
@@ -10,11 +11,13 @@ namespace Swisschain.Extensions.Postgres.StaleConnectionsCleaning
     {
         private readonly ILogger<StaleConnectionsCleaner> _logger;
         private readonly string _connectionString;
+        private readonly TimeSpan _maxAge;
 
-        public StaleConnectionsCleaner(ILogger<StaleConnectionsCleaner> logger, string connectionString)
+        public StaleConnectionsCleaner(ILogger<StaleConnectionsCleaner> logger, string connectionString, TimeSpan maxAge)
         {
             _logger = logger;
             _connectionString = connectionString;
+            _maxAge = maxAge;
         }
 
         public async Task Clear()
@@ -43,7 +46,7 @@ namespace Swisschain.Extensions.Postgres.StaleConnectionsCleaning
                     state in ('idle', 'idle in transaction', 'idle in transaction (aborted)', 'disabled') 
                 AND
                     -- Include old connections (found with the state_change field)
-                    current_timestamp - state_change > interval '5 minutes' 
+                    current_timestamp - state_change > @maxAge 
             )
             SELECT
                 pg_terminate_backend(pid)
@@ -57,8 +60,9 @@ namespace Swisschain.Extensions.Postgres.StaleConnectionsCleaning
             _logger.LogInformation("Stale DB connections cleaning is being started {@context}...",
                 new
                 {
-                    DataBaseServer = connection.DataSource,
-                    DataBase = connection.Database
+                    DatabaseServer = connection.DataSource,
+                    Database = connection.Database,
+                    UserName = connection.UserName
                 });
 
             try
@@ -71,14 +75,16 @@ namespace Swisschain.Extensions.Postgres.StaleConnectionsCleaning
                 await using var command = connection.CreateCommand();
 
                 command.CommandText = script;
+                command.Parameters.Add(new NpgsqlParameter("maxAge", NpgsqlDbType.Interval) {Value = _maxAge});
 
                 var cleanedConnectionsCount = await command.ExecuteNonQueryAsync();
 
                 _logger.LogInformation("Stale DB connections cleaning is being started {@context}...",
                     new
                     {
-                        DataBaseServer = connection.DataSource,
-                        DataBase = connection.Database,
+                        DatabaseServer = connection.DataSource,
+                        Database = connection.Database,
+                        UserName = connection.UserName,
                         CleanedConnectionsCount = cleanedConnectionsCount
                     });
             }
@@ -88,7 +94,8 @@ namespace Swisschain.Extensions.Postgres.StaleConnectionsCleaning
                     new
                     {
                         DataBaseServer = connection.DataSource,
-                        DataBase = connection.Database
+                        Database = connection.Database,
+                        UserName = connection.UserName
                     });
 
                 throw;
