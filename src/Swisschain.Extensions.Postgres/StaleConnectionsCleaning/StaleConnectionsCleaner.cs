@@ -60,6 +60,7 @@ namespace Swisschain.Extensions.Postgres.StaleConnectionsCleaning
             _logger.LogInformation("Stale DB connections cleaning is being started {@context}...",
                 new
                 {
+                    MaxAge = _maxAge,
                     DatabaseServer = connection.DataSource,
                     Database = connection.Database,
                     UserName = connection.UserName
@@ -77,11 +78,25 @@ namespace Swisschain.Extensions.Postgres.StaleConnectionsCleaning
                 command.CommandText = script;
                 command.Parameters.Add(new NpgsqlParameter("maxAge", NpgsqlDbType.Interval) {Value = _maxAge});
 
-                var cleanedConnectionsCount = await command.ExecuteNonQueryAsync();
+                await using var resultsReader = await command.ExecuteReaderAsync();
+
+                var cleanedConnectionsCount = 0;
+
+                if (resultsReader.HasRows)
+                {
+                    while (await resultsReader.ReadAsync())
+                    {
+                        if (resultsReader.GetBoolean(0))
+                        {
+                            ++cleanedConnectionsCount;
+                        }
+                    }
+                }
 
                 _logger.LogInformation("Stale DB connections cleaning is being started {@context}...",
                     new
                     {
+                        MaxAge = _maxAge,
                         DatabaseServer = connection.DataSource,
                         Database = connection.Database,
                         UserName = connection.UserName,
@@ -93,6 +108,7 @@ namespace Swisschain.Extensions.Postgres.StaleConnectionsCleaning
                 _logger.LogError(ex, "Stale DB connections cleaning has been failed {@context}",
                     new
                     {
+                        MaxAge = _maxAge,
                         DataBaseServer = connection.DataSource,
                         Database = connection.Database,
                         UserName = connection.UserName
